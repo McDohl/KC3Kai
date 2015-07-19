@@ -6,6 +6,35 @@ Provides access to data on built-in JSON files
 (function(){
 	"use strict";
 	
+	$.getTranslationJSON = function(language, filename, callback){
+		var enJSON = {}, localJSON;
+		
+		$.ajax('/data/translations/en/' + filename + '.json', {
+			dataType:	'json',
+			success:	function(response){
+				enJSON = response;
+			},
+			complete:	function(){
+				if( language == 'en' ){
+					console.log(enJSON);
+					callback(enJSON);
+				}else{
+					$.ajax('/data/translations/' +language+ '/' + filename + '.json', {
+						dataType:	'json',
+						success:	function(data){
+							localJSON = $.extend(true, enJSON, data);
+						},
+						complete:	function(){
+							localJSON = localJSON || enJSON;
+							console.log(localJSON);
+							callback(localJSON);
+						}
+					});
+				}
+			}
+		});
+	};
+	
 	window.KC3Meta = {
 		_cache:{},
 		_icons:{},
@@ -34,6 +63,7 @@ Provides access to data on built-in JSON files
 			
 			// Load Translations
 			var lang = ConfigManager.language || "en";
+			/*
 			$.getJSON(repo+"translations/"+lang+"/ships.json", function(response){ self._ship = response; });
 			$.getJSON(repo+"translations/"+lang+"/items.json", function(response){ self._slotitem = response; });
 			$.getJSON(repo+"translations/"+lang+"/quests.json", function(response){ self._quests = response; });
@@ -43,6 +73,16 @@ Provides access to data on built-in JSON files
 			$.getJSON(repo+"translations/"+lang+"/battle.json", function(response){ self._battle = response; });
 			$.getJSON(repo+"translations/"+lang+"/record.json", function(response){ self._record = response; });
 			$.getJSON(repo+"translations/"+lang+"/terms.json", function(response){ self._terms = response; });
+			*/
+			$.getTranslationJSON(lang, 'ships', function(response){ self._ship = response; });
+			$.getTranslationJSON(lang, 'items', function(response){ self._slotitem = response; });
+			$.getTranslationJSON(lang, 'quests', function(response){ self._quests = response; });
+			$.getTranslationJSON(lang, 'ranks', function(response){ self._ranks = response; });
+			$.getTranslationJSON(lang, 'stype', function(response){ self._stype = response; });
+			$.getTranslationJSON(lang, 'servers', function(response){ self._servers = response; });
+			$.getTranslationJSON(lang, 'battle', function(response){ self._battle = response; });
+			$.getTranslationJSON(lang, 'record', function(response){ self._record = response; });
+			$.getTranslationJSON(lang, 'terms', function(response){ self._terms = response; });
 		},
 		
 		/* Data Access
@@ -71,6 +111,10 @@ Provides access to data on built-in JSON files
 			return empty;
 		},
 		
+		formationIcon :function(formationId){
+			return "../../../../assets/img/formation/" + formationId + ".jpg";
+		},
+		
 		shipName :function( jp_name ){
 			if(typeof this._cache[jp_name] !== "undefined"){ return this._cache[jp_name]; }
 			if(typeof this._ship[jp_name] !== "undefined"){
@@ -87,7 +131,7 @@ Provides access to data on built-in JSON files
 			if( jp_name.substr(jp_name.length-2, 2) == "改二" ){
 				var bare2 = jp_name.substr(0, jp_name.length-2);
 				if(typeof this._ship[bare2] !== "undefined"){
-					this._cache[jp_name] = this._ship[bare2]+" Kai2";
+					this._cache[jp_name] = this._ship[bare2]+" Kai Ni";
 					return this._cache[jp_name];
 				}
 			}
@@ -132,7 +176,7 @@ Provides access to data on built-in JSON files
 		},
 		
 		gauge :function(map_id){
-			return this._gauges["m"+map_id] || 4;
+			return this._gauges["m"+map_id] || false;
 		},
 		
 		detection :function(index){
