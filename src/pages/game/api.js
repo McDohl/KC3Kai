@@ -59,6 +59,10 @@ $(document).on("ready", function(){
 		window.location.reload();
 	});
 	
+	// Disable Quick Play (must panel
+	if(ConfigManager.api_mustPanel)
+		$(".play_btn").hide();
+	
 	// Quick Play
 	$(".play_btn").on('click', function(){
 		ActivateGame();
@@ -67,13 +71,25 @@ $(document).on("ready", function(){
 	// Exit confirmation
 	window.onbeforeunload = function(){
 		ConfigManager.load();
-		if(ConfigManager.api_askExit==1 && !trustedExit){
+		// added waiting condition should be ignored
+		if(ConfigManager.api_askExit==1 && !trustedExit && !waiting){
 			trustedExit = true;
 			setTimeout(function(){ trustedExit = false; }, 100);
 			return "Ahhh! You are leaving your girls! Are you sure you want to leave them?";
 		}
 	};
 	
+	setInterval(function(){
+		window.focus();
+	}, 100);
+	
+});
+
+$(document).on("keydown", function(event){
+    if(event.keyCode == 120){
+		(new KCScreenshot()).start("Auto", $(".box-wrap"));
+        return false;
+    }
 });
 
 /* Invokable actions
