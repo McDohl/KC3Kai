@@ -5,7 +5,8 @@
 		container: "#h",
 		externalHtml: "horizontal/horizontal.html",
 		variables: {
-			selectedFleet: 1
+			selectedFleet: 1,
+			isSunkable: false // damecon user overrides this
 		},
 		ready: function(){
 			var self = this;
@@ -56,7 +57,7 @@
 				KC3TimerManager.update();
 			}, 1000);
 			
-			// Screenshot button
+			// Screenshot buttons
 			$(".screenshot-button", this.domElement).on("click", function(){
 				$(this).hide();
 				
@@ -67,6 +68,20 @@
 				}, function(response){
 					console.log(response);
 					$(".screenshot-button", self.domElement).show();
+				})).execute();
+			});
+			
+			// Battle mode screenshot button
+			$(".battle .battle_screenshot", this.domElement).on("click", function(){
+				$(this).hide();
+				
+				// Tell service to pass a message to gamescreen on inspected window to get a screenshot
+				(new RMsg("service", "screenshot", {
+					tabId: chrome.devtools.inspectedWindow.tabId,
+					playerName: PlayerManager.hq.name
+				}, function(response){
+					console.log(response);
+					$(".battle .battle_screenshot", self.domElement).show();
 				})).execute();
 			});
 			
@@ -141,20 +156,30 @@
 				$(".battle_hqlevel_next_gain", container).text( "" );
 			},
 			HQ: function(container, data, local){
-				if(KC3Panel.mode=="normal"){
-					$(".admiral_name", container).text( PlayerManager.hq.name );
-					$(".admiral_comm", container).text( PlayerManager.hq.desc );
-					$(".admiral_rank", container).text( PlayerManager.hq.rank );
-					$(".level_value", container).text( PlayerManager.hq.level );
-					$(".exp_bar", container).css({width: Math.round(PlayerManager.hq.exp[0]*88)+"px"});
-					$(".exp_text", container).text( PlayerManager.hq.exp[ConfigManager.hqExpDetail] );
-				}else if(KC3Panel.mode=="battle"){
-					$(".battle_admiral", container).text( PlayerManager.hq.name );
-					$(".battle_hqlevel_text", container).text( PlayerManager.hq.level );
-					$(".battle_hqexpval", container).css({width: Math.round(PlayerManager.hq.exp[0]*60)+"px"});
-					if((data || {resetGain:true}).resetGain)
-						$(".battle_hqexpgain", container).css({width: Math.round(PlayerManager.hq.exp[0]*60)+"px"});
-					$(".battle_hqlevel_next", container).text( PlayerManager.hq.exp[ConfigManager.hqExpDetail] );
+				var
+					hqt = KC3Meta.term("HQExpAbbrev" + (ConfigManager.hqExpDetail)) + " ",
+					hqexpd = Math.abs($(".battle_hqlevel_next_gain", container).text());
+				switch(KC3Panel.mode){
+					case "normal":
+						$(".admiral_name", container).text( PlayerManager.hq.name );
+						$(".admiral_comm", container).text( PlayerManager.hq.desc );
+						$(".admiral_rank", container).text( PlayerManager.hq.rank );
+						$(".level_value", container).text( PlayerManager.hq.level );
+						$(".exp_bar", container).css({width: Math.round(PlayerManager.hq.exp[0]*88)+"px"});
+						$(".exp_text", container).text( hqt + PlayerManager.hq.exp[ConfigManager.hqExpDetail] );
+					break;
+					case "battle":
+						$(".battle_admiral", container).text( PlayerManager.hq.name );
+						$(".battle_hqlevel_text", container).text( PlayerManager.hq.level );
+						$(".battle_hqexpval", container).css({width: Math.round(PlayerManager.hq.exp[0]*60)+"px"});
+						if((data || {resetGain:true}).resetGain)
+							$(".battle_hqexpgain", container).css({width: Math.round(PlayerManager.hq.exp[0]*60)+"px"});
+						$(".battle_hqlevel_next", container)
+							.text( PlayerManager.hq.exp[ConfigManager.hqExpDetail] )
+							.attr("title",hqt);
+						if(hqexpd.length>0)
+							$(".battle_hqlevel_next_gain", container).text(hqexpd*(ConfigManager.hqExpDetail==1?-1:1));
+					break;
 				}
 			},
 			Consumables: function(container, data, local){
@@ -415,9 +440,10 @@
 			},
 			SortieStart: function(container, data, local){
 				KC3Panel.mode = "battle";
+				KC3Panel.layout().data.isSunkable = true;
 				
 				// Show world details
-				$(".battle .battle_world", container).text("World "+KC3SortieManager.map_world+" - "+KC3SortieManager.map_num+(function(d){
+				$(".battle .battle_world", container).text(KC3SortieManager.map_world+"-"+KC3SortieManager.map_num+(function(d){
 					switch(d) {
 						case 1: case 2: case 3:
 							return " " + ["Easy","Normal","Hard"][d-1];
@@ -515,7 +541,7 @@
 			},
 			BattleStart: function(container, data, local){
 				if(KC3SortieManager.currentNode().type != "battle"){ console.error("Wrong node handling"); return false; }
-				$(".battle .battle_current", container).text("FIGHTING");
+				$(".battle .battle_current", container).text("DAY BATTLE");
 				var thisNode = KC3SortieManager.currentNode();
 				var battleData = (thisNode.startNight)? thisNode.battleNight : thisNode.battleDay;
 				
@@ -554,6 +580,7 @@
 				$(".battle .battle_cond_engage .battle_cond_text", container).addClass( thisNode.engagement[1] );
 				$(".battle .battle_cond_contact .battle_cond_text", container).text(thisNode.fcontact +" vs "+thisNode.econtact);
 				
+				$(".battle .battle_support",container).show();
 				// Day battle-only environment
 				if(!thisNode.startNight){
 					// If support expedition is triggered on this battle
@@ -618,7 +645,9 @@
 			},
 			BattleNight: function(container, data, local){
 				if(KC3SortieManager.currentNode().type != "battle"){ console.error("Wrong node handling"); return false; }
+				
 				var desperateText = [
+					"NIGHT BATTLE",
 					"DESPERATE? :P",
 					"LOL SKRUB",
 					"ALL DA BONUSES",
@@ -632,13 +661,19 @@
 					"It's futile mang",
 					"Let's all pray~",
 					"RNGesus bless him",
-					"I bless this run"
-				]; // events? extra operations? end of month? coming soon. (i guess by other)
-				if(ConfigManager.info_troll)
-					$(".battle .battle_current", container).text(desperateText[Math.floor(Math.random()*desperateText.length)]);
-				else
+					"I bless this run",
+					"drops but no slot"
+				];
+				if(ConfigManager.info_troll){
+					$(".battle .battle_current", container).text(
+						desperateText[Math.floor(Math.random()*desperateText.length)]
+					);
+				}else{
 					$(".battle .battle_current", container).text("NIGHT BATTLE");
+				}
+				
 				var thisNode = KC3SortieManager.currentNode();
+				
 				// Load after-battle HP
 				KC3Network.trigger("Fleet");
 
@@ -687,6 +722,9 @@
 				}
 			},
 			CraftGear: function(container, data, local){
+				// Recall equipment count
+				this.GearSlots(container, {}, local);
+				
 				if(!ConfigManager.info_craft){ return true; }
 				
 				// Hide any other activity box
@@ -700,9 +738,6 @@
 				var icon = "../../../../assets/img/items/"+MasterItem.api_type[3]+".png";
 				$(".craftGear .equipIcon img", container).attr("src", icon);
 				$(".craftGear .equipName", container).text( PlayerItem.name() );
-				
-				// Recall equipment count
-				this.GearSlots(container, {}, local);
 				
 				// Show extra item info
 				var countExisting = KC3GearManager.countByMasterId( data.itemMasterId );
@@ -739,10 +774,13 @@
 				
 			},
 			ClearedMap: function(container, data, local){
+				KC3Panel.layout().data.isSunkable = false;
 				
 			},
 			PvPStart: function(container, data, local){
 				KC3Panel.mode = "battle";
+				KC3Panel.layout().data.isSunkable = false;
+				
 				$(".battle .battle_world", container).text("PvP Practice Battle");
 				$(".battle .battle_current", container).text("FIGHTING");
 				KC3SortieManager.fleetSent = data.fleetSent;
@@ -762,6 +800,7 @@
 				
 				// Hide useless information
 				$(".battle .battle_boss", container).hide();
+				$(".battle .battle_support",container).hide();
 				$(".battle .battle_drop", container).hide();
 				
 				// Change interface mode
@@ -852,7 +891,8 @@
 				$(".battle .battle_results", container).show();
 			},
 			PvPNight: function(container, data, local){
-				
+				// Load after-battle HP
+				this.Fleet(container, {}, local);
 			},
 			PvPEnd: function(container, data, local){
 				var expGained = data.result.api_get_exp;
@@ -883,16 +923,17 @@
 	}
 	
 	function FleetHP(container, ShipBox, hp, afterHp, rosterId){
-		if ((typeof afterHp === "undefined") || (afterHp === null) || (!ConfigManager.info_battle)) {
-			afterHp = [hp[0], hp[1]];
+		if (!ConfigManager.info_battle) {
+			afterHp = null;
 		}
+		afterHp = afterHp || [hp[0], hp[1]];
 		var hpPercent = hp[0] / hp[1];
 		var afterHpPercent = afterHp[0] / afterHp[1];
 
 		$(".ship-hp-text", ShipBox).text( hp[0] +" / "+ hp[1] );
 		$(".ship-hp-val", ShipBox).css("width", (100*hpPercent)+"px");
-		console.log("afterHp: " + afterHp);
 		$(".ship-hp-after-val", ShipBox).css("width", (100*afterHpPercent)+"px");
+		$(ShipBox).removeClass("ship-stamp-cond");
 		
 		if( PlayerManager.repairShips.indexOf(rosterId) > -1){
 			$(".ship-img", ShipBox).css("background", "#ACE");
@@ -918,7 +959,10 @@
 				$(".ship-hp-val", ShipBox).css("background", "#00FF00");
 			}
 
-			if(afterHpPercent <= 0.25){
+			if(afterHpPercent <= 0.00 && ConfigManager.info_btstamp) { // Sunk or Knocked out
+				$(ShipBox).addClass("ship-cond-stamp");
+				$(ShipBox).attr("title",KC3Meta.term("PredictionStamp"+(KC3Panel.layout().data.isSunkable ? "Sortie" : "PvP")));
+			} else if(afterHpPercent <= 0.25){
 				$(".ship-hp-after-val", ShipBox).css("background", "#FF0000");
 			} else if(afterHpPercent <= 0.50){
 				$(".ship-hp-after-val", ShipBox).css("background", "#FF9900");
